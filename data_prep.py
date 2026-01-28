@@ -6,6 +6,8 @@ df_us = pd.read_csv("US_Avg_Tuition.csv")
 df_uk = pd.read_csv("UK_Avg_Tuition.csv")
 df_au = pd.read_csv("Aus_Avg_Tuition.csv")
 
+df_work = pd.DataFrame(df_main)
+
 def update_data(df):
     update_typo = {
         'MIT' : 'Boston',
@@ -106,7 +108,8 @@ def exact_livCost (df):
     baseline = 1650
     livCost_exclRent = df['Living_Cost_Index'] / 100 * baseline
     fix_livCost = livCost_exclRent + df['Rent_USD']
-    return fix_livCost
+    df['Exact_Living_Cost'] = fix_livCost
+    return df
 
 def get_avgInfTui(df):
     inflation = df['Avg_Tuition'].pct_change() * 100
