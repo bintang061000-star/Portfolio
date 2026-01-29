@@ -6,6 +6,10 @@ df_us = pd.read_csv("US_Avg_Tuition.csv")
 df_uk = pd.read_csv("UK_Avg_Tuition.csv")
 df_au = pd.read_csv("Aus_Avg_Tuition.csv")
 
+df_Growth_LivCost_US = pd.read_csv("Growth_LivCost_US.csv")
+df_Growth_LivCost_UK = pd.read_csv("Growth_LivCost_UK.csv")
+df_Growth_LivCost_Aus = pd.read_csv("Growth_LivCost_Aus.csv")
+
 df_work = pd.DataFrame(df_main)
 
 def update_data(df):
@@ -15,12 +19,12 @@ def update_data(df):
     }
 
     update_level = {
-        'Bachelor' : 1,
-        'Master' : 2,
-        'PhD' : 3
+        'Bachelor' : 'Bachelor',
+        'Master' : 'Master',
+        'PhD' : 'PhD'
     }
 
-        # Update Living Cost Index
+    # Update Living Cost Index
     update_liv_cost = {
         #Australia
         'Brisbane': 69.13,
@@ -113,7 +117,13 @@ def exact_livCost (df):
 
 def get_avgInfTui(df):
     inflation = df['Avg_Tuition'].pct_change() * 100
-    return round(inflation.mean(), 2)
+    inflation = inflation.dropna()
+    return inflation
+
+def get_avgInfLivCost(df):
+    inflation = df['Growth'].pct_change() * 100
+    inflation = inflation.dropna()
+    return inflation
 
 # def main ():
 #     try:
