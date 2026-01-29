@@ -10,6 +10,14 @@ df_Growth_LivCost_US = pd.read_csv("Growth_LivCost_US.csv")
 df_Growth_LivCost_UK = pd.read_csv("Growth_LivCost_UK.csv")
 df_Growth_LivCost_Aus = pd.read_csv("Growth_LivCost_Aus.csv")
 
+df_Growth_Insurance_US = pd.read_csv("Growth_Insurance_US.csv")
+df_Growth_Insurance_UK = pd.read_csv("Growth_Insurance_UK.csv")
+df_Growth_Insurance_Aus = pd.read_csv("Growth_Insurance_Aus.csv")
+
+df_Growth_Rent_US = pd.read_csv("Growth_Rent_US.csv")
+df_Growth_Rent_UK = pd.read_csv("Growth_Rent_UK.csv")
+df_Growth_Rent_Aus = pd.read_csv("Growth_Rent_Aus.csv")
+
 df_work = pd.DataFrame(df_main)
 
 def update_data(df):
@@ -111,16 +119,11 @@ def append_yeCost(df):
 def exact_livCost (df):
     baseline = 1650
     livCost_exclRent = df['Living_Cost_Index'] / 100 * baseline
-    fix_livCost = livCost_exclRent + df['Rent_USD']
-    df['Exact_Living_Cost'] = fix_livCost
+    fix_livCost = livCost_exclRent + df['Rent_USD'] + df['Insurance_USD']
+    df['Monthly_Living_Cost'] = fix_livCost
     return df
 
-def get_avgInfTui(df):
-    inflation = df['Avg_Tuition'].pct_change() * 100
-    inflation = inflation.dropna()
-    return inflation
-
-def get_avgInfLivCost(df):
+def get_avgInf_Series(df, target_col):
     inflation = df['Growth'].pct_change() * 100
     inflation = inflation.dropna()
     return inflation
