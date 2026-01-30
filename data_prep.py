@@ -1,22 +1,35 @@
 import pandas as pd
 import yfinance as yf
 
-df_main = pd.read_csv("New International_Education_Costs.csv")
-df_us = pd.read_csv("US_Avg_Tuition.csv")
-df_uk = pd.read_csv("UK_Avg_Tuition.csv")
-df_au = pd.read_csv("Aus_Avg_Tuition.csv")
+def load_dataset(file_name):
+    return pd.read_csv(f"datasets/{file_name}.csv")
 
-df_Growth_LivCost_US = pd.read_csv("Growth_LivCost_US.csv")
-df_Growth_LivCost_UK = pd.read_csv("Growth_LivCost_UK.csv")
-df_Growth_LivCost_Aus = pd.read_csv("Growth_LivCost_Aus.csv")
+df_main = load_dataset("New International_Education_Costs")
 
-df_Growth_Insurance_US = pd.read_csv("Growth_Insurance_US.csv")
-df_Growth_Insurance_UK = pd.read_csv("Growth_Insurance_UK.csv")
-df_Growth_Insurance_Aus = pd.read_csv("Growth_Insurance_Aus.csv")
+df_us = load_dataset("US_Avg_Tuition")
+df_uk = load_dataset("UK_Avg_Tuition")
+df_au = load_dataset("Aus_Avg_Tuition")
+df_other = load_dataset("Other_Avg_Tuition")
 
-df_Growth_Rent_US = pd.read_csv("Growth_Rent_US.csv")
-df_Growth_Rent_UK = pd.read_csv("Growth_Rent_UK.csv")
-df_Growth_Rent_Aus = pd.read_csv("Growth_Rent_Aus.csv")
+df_Growth_LivCost_US = load_dataset("Growth_LivCost_US")
+df_Growth_LivCost_UK = load_dataset("Growth_LivCost_UK")
+df_Growth_LivCost_Aus = load_dataset("Growth_LivCost_Aus")
+df_Growth_LivCost_Other = load_dataset("Growth_LivCost_Other")
+
+df_Growth_Insurance_US = load_dataset("Growth_Insurance_US")
+df_Growth_Insurance_UK = load_dataset("Growth_Insurance_UK")
+df_Growth_Insurance_Aus = load_dataset("Growth_Insurance_Aus")
+df_Growth_Insurance_Other = load_dataset("Growth_Insurance_Other")
+
+df_Growth_Rent_US = load_dataset("Growth_Rent_US")
+df_Growth_Rent_UK = load_dataset("Growth_Rent_UK")
+df_Growth_Rent_Aus = load_dataset("Growth_Rent_Aus")
+df_Growth_Rent_Other = load_dataset("Growth_Rent_Other")
+
+df_InfUS = load_dataset("US_Inflation")
+df_InfUK = load_dataset("UK_Inflation")
+df_InfAus = load_dataset("Aus_Inflation")
+df_InfGlobal = load_dataset("Other_Inflation")
 
 df_work = pd.DataFrame(df_main)
 
@@ -119,67 +132,26 @@ def append_yeCost(df):
 def exact_livCost (df):
     baseline = 1650
     livCost_exclRent = df['Living_Cost_Index'] / 100 * baseline
-    fix_livCost = livCost_exclRent + df['Rent_USD'] + df['Insurance_USD']
+    fix_livCost = livCost_exclRent + df['Rent_USD']
     df['Monthly_Living_Cost'] = fix_livCost
     return df
 
 def get_avgInf_Series(df, target_col):
-    inflation = df['Growth'].pct_change() * 100
+    inflation = df[target_col].pct_change() * 100
     inflation = inflation.dropna()
     return inflation
 
-# def main ():
-#     try:
-#         # 1. Coba Load Semua Data
-#         print("Sedang memuat data...")
-#         df_main = pd.read_csv("New International_Education_Costs.csv")
-#         df_us = pd.read_csv("US_Avg_Tuition.csv")
-#         df_uk = pd.read_csv("UK_Avg_Tuition.csv")
-#         df_au = pd.read_csv("Aus_Avg_Tuition.csv")
-        
-#         print("Sukses memuat semua data!")
-        
-#         # Kembalikan data agar bisa dipakai fungsi lain
-#         return df_main, df_us, df_uk, df_au
-
-#     except FileNotFoundError as e:
-#         # 2. Khusus Error kalau File Tidak Ada
-#         print(f"\n[ERROR FATAL] File tidak ditemukan: {e}")
-#         print("Pastikan nama file benar dan ada di folder yang sama.")
-#         sys.exit() # Matikan program karena percuma jalan tanpa data
-
-#     except Exception as e:
-#         # 3. Error Lainnya (Misal: Format CSV rusak, Pandas belum install, dll)
-#         print(f"\n[ERROR TIDAK TERDUGA]: {e}")
-#         sys.exit()
-
-# class InflationEngine:
-#     # 1. Pintu Masuk (Terima Data Mentah)
-#     def __init__(self, df_main, df_us, df_uk, df_au):
-#         self.univ_map = dict(zip(df_main['University'], df_main['Country']))
-        
-#         # 2. EKSEKUSI DI SINI (Di dalam __init__)
-#         # Kita panggil method '_hitung_growth' (blender yang sama) berulang kali
-#         self.rates = {
-#             'USA': self._hitung_growth(df_us),       # Panggil untuk US
-#             'UK': self._hitung_growth(df_uk),        # Panggil untuk UK
-#             'Australia': self._hitung_growth(df_au)  # Panggil untuk Aus
-#         }
-        
-#         # Hitung rata-rata untuk default
-#         self.default_rate = round(sum(self.rates.values()) / 3, 2)
-
-#     # 3. METHOD UNIVERSAL (Si Blender)
-#     # Ini adalah fungsi efisien yang kamu tanyakan tadi.
-#     # Kita taruh di dalam class sebagai 'Private Method' (pake underscore _)
-#     def _hitung_growth(self, df):
-#         # Logika satu baris yang efisien
-#         return round(df['Avg_Tuition'].pct_change().mean() * 100, 2)
-
-#     # 4. Method Prediksi (Output ke User)
-#     def get_prediction(self, university_name, current_cost, years):
-#         country = self.univ_map.get(university_name, 'Unknown')
-#         rate = self.rates.get(country, self.default_rate)
-        
-#         future_cost = current_cost * ((1 + rate/100) ** years)
-#         return future_cost, rate
+def exchange_rate_growth():
+    try:
+        data_kurs = yf.Ticker("IDR=X").history(period="10y")
+        if data_kurs.empty:
+            return 0.0
+        kurs_tahunan = data_kurs['Close'].resample('YE').mean()
+        growth_kurs = kurs_tahunan.pct_change() * 100
+        rerata_kenaikan_kurs = growth_kurs.mean()
+        if pd.isna(rerata_kenaikan_kurs):
+            return 0.0
+        return round(rerata_kenaikan_kurs, 2)
+    except Exception as e:
+        print(f"Error fetching exchange rate: {e}")
+        return 0.0
