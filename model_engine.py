@@ -35,7 +35,8 @@ def load_data():
 
     return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
-if __name__ == "__main__":
+def train_model():
+    print("--- Training Model ---")
     df = load_data()
     
     if not df.empty:
@@ -55,3 +56,7 @@ if __name__ == "__main__":
         print(f"R2 Score: {r2_score(y_test, pred):.4f}")
         
         joblib.dump(model, 'budget_predictor_model.pkl')
+        print("Model saved to budget_predictor_model.pkl")
+
+if __name__ == "__main__":
+    train_model()

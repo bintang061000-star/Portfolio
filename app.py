@@ -1,113 +1,136 @@
 import streamlit as st
 import pandas as pd
+import joblib
 import datetime
-import data_prep as dp  # Data Frame Utama
-import update_dataPrep as udp  # Logic Inflasi
+import data_prep as dp
 
-# --- 1. KONFIGURASI HALAMAN ---
+# --- CONFIG ---
 st.set_page_config(page_title="EduCost Predictor", layout="wide")
+st.title("Education Budget Forecaster")
+st.markdown("Estimate your future study costs using Machine Learning (Random Forest).")
 
-st.title("🎓 Kalkulator Inflasi Biaya Pendidikan")
-st.markdown("Simulasi kenaikan biaya kuliah di luar negeri berdasarkan data historis inflasi.")
+# --- LOAD MODEL (Cached) ---
+@st.cache_resource
+def load_model():
+    try:
+        return joblib.load('budget_predictor_model.pkl')
+    except:
+        return None
 
-# --- 2. SIDEBAR (UNTUK INPUT USER) ---
+model = load_model()
+
+if not model:
+    st.error("Model not found! Please run `model_engine.py` first to generate the .pkl file.")
+    st.stop()
+
+COUNTRY_MAP = {'USA': 0, 'UK': 1, 'Australia': 2, 'Other': 3}
+
+# --- SIDEBAR INPUTS ---
 with st.sidebar:
-    st.header("Parameter Simulasi")
+    st.header("Study Plan")
     
-    # A. Load Data Inflasi (Disimpan di Cache biar cepat)
-    # Kita pakai st.cache_data supaya tidak hitung ulang terus menerus
-    @st.cache_data
-    def load_inflation():
-        return udp.update_tuiInf()
-
-    rates_memory = load_inflation()
+    # 1. Country Selection
+    countries = sorted(dp.df_main['Country'].unique())
+    country = st.selectbox("Destination Country", countries)
     
-    # B. Input Kampus (Dropdown, bukan ketik manual!)
-    # Ambil daftar unik universitas dari dataframe
-    list_kampus = sorted(dp.df_main['University'].unique())
-    pilihan_kampus = st.selectbox("Pilih Universitas:", list_kampus)
+    # 2. University Selection (Filtered by Country)
+    univs = sorted(dp.df_main[dp.df_main['Country'] == country]['University'].unique())
+    university = st.selectbox("University", univs)
     
-    # C. Input Tahun Rencana (Slider)
-    rencana_tahun = st.slider("Rencana Kuliah (Berapa tahun lagi?)", 1, 10, 5)
-
-# --- 3. LOGIKA UTAMA (MAIN ENGINE) ---
-
-# Cari data kampus yang dipilih user
-# Filter baris yang University-nya sama dengan pilihan user
-data_kampus_terpilih = dp.df_main[dp.df_main['University'] == pilihan_kampus].iloc[0]
-
-# Ambil informasi penting dari data tersebut
-negara_asal = data_kampus_terpilih['Country']
-biaya_saat_ini = data_kampus_terpilih['Tuition_USD']
-
-# Ambil Rate Inflasi dari Memory (Logic .get yang kita bahas tadi)
-rate_inflasi = rates_memory.get(negara_asal, 3.0) # Default 3.0 jika negara unknown
-
-# --- 4. TAMPILKAN INFO UTAMA (METRICS) ---
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.metric("Lokasi Kampus", negara_asal)
-
-with col2:
-    st.metric("Biaya Saat Ini (USD)", f"${biaya_saat_ini:,.0f}")
-
-with col3:
-    # Tampilkan Rate Inflasi (Merah artinya naik)
-    st.metric("Laju Inflasi Historis", f"{rate_inflasi}%", delta=f"{rate_inflasi}%")
-
-st.divider()
-
-# --- 5. KALKULASI LOOPING (LOGIKA MASA DEPAN) ---
-# Kita simpan hasilnya dalam bentuk List of Dictionary agar mudah jadi Tabel/Grafik
-hasil_prediksi = []
-
-tahun_sekarang = datetime.datetime.now().year
-biaya_progresif = biaya_saat_ini
-
-# Masukkan data tahun ini (Tahun ke-0)
-hasil_prediksi.append({
-    "Tahun": tahun_sekarang,
-    "Status": "Sekarang",
-    "Estimasi Biaya (USD)": round(biaya_progresif, 2)
-})
-
-# Loop untuk tahun-tahun berikutnya
-for i in range(1, rencana_tahun + 1):
-    tahun_target = tahun_sekarang + i
+    # 3. Program Selection (Filtered by University)
+    programs = sorted(dp.df_main[
+        (dp.df_main['Country'] == country) & 
+        (dp.df_main['University'] == university)
+    ]['Program'].unique())
+    program = st.selectbox("Program", programs)
     
-    # RUMUS COMPOUNDING
-    biaya_progresif = biaya_progresif * (1 + rate_inflasi/100)
+    # 4. Level Selection (Filtered by Program)
+    levels = sorted(dp.df_main[
+        (dp.df_main['Country'] == country) & 
+        (dp.df_main['University'] == university) &
+        (dp.df_main['Program'] == program)
+    ]['Level'].unique())
+    level = st.selectbox("Degree Level", levels)
     
-    hasil_prediksi.append({
-        "Tahun": tahun_target,
-        "Status": f"+ {i} Tahun",
-        "Estimasi Biaya (USD)": round(biaya_progresif, 2)
-    })
+    # 5. Year Input
+    current_year = datetime.datetime.now().year
+    start_year = st.number_input("Target Start Year", min_value=current_year, value=current_year+5)
+    
+    predict_btn = st.button("Calculate Forecast", type="primary")
 
-# Ubah List menjadi DataFrame (Tabel Pandas) supaya bisa divisualisasikan
-df_hasil = pd.DataFrame(hasil_prediksi)
-
-# --- 6. VISUALISASI HASIL (TABEL & GRAFIK) ---
-col_kiri, col_kanan = st.columns([1, 2]) # Kolom kanan lebih lebar buat grafik
-
-with col_kiri:
-    st.subheader("Tabel Rincian")
-    # Tampilkan tabel data
-    st.dataframe(df_hasil.style.format({"Estimasi Biaya (USD)": "${:,.2f}"}))
-
-with col_kanan:
-    st.subheader("Tren Kenaikan Biaya")
-    # Tampilkan Grafik Garis
-    st.line_chart(df_hasil, x="Tahun", y="Estimasi Biaya (USD)")
-
-# --- 7. KESIMPULAN (MSG BOX) ---
-biaya_akhir = df_hasil.iloc[-1]['Estimasi Biaya (USD)']
-kenaikan_total = biaya_akhir - biaya_saat_ini
-
-st.warning(f"""
-**Kesimpulan:**
-Jika kamu berencana kuliah di **{pilihan_kampus}** pada tahun **{tahun_sekarang + rencana_tahun}**, 
-kamu perlu menyiapkan dana sekitar **${biaya_akhir:,.2f}**.
-Biaya ini naik sebesar **${kenaikan_total:,.2f}** dari harga sekarang akibat inflasi pendidikan.
-""")
+# --- MAIN LOGIC ---
+if predict_btn:
+    # Get Data Row
+    row = dp.df_main[
+        (dp.df_main['Country'] == country) & 
+        (dp.df_main['University'] == university) &
+        (dp.df_main['Program'] == program) &
+        (dp.df_main['Level'] == level)
+    ].iloc[0]
+    
+    # Predict Rates
+    c_code = COUNTRY_MAP.get(country, 3)
+    curr_rate = dp.exchange_rate_growth()
+    # Predict rates relative to the start year context
+    rates = model.predict([[c_code, 3.0, start_year, curr_rate]])[0] / 100
+    r_tui, r_rent, r_liv, r_ins = rates
+    
+    # Calculate Future Value at Start Year
+    # Initial Base Costs
+    cur_tuition = row['Tuition_USD'] * 2
+    cur_liv_excl_rent = (row['Living_Cost_Index']/100) * 1650
+    cur_rent = row['Rent_USD']
+    cur_insurance = row['Insurance_USD']
+    
+    years_gap = start_year - current_year
+    
+    if years_gap > 0:
+        cur_tuition *= ((1 + r_tui) ** years_gap)
+        cur_rent *= ((1 + r_rent) ** years_gap)
+        cur_liv_excl_rent *= ((1 + r_liv) ** years_gap)
+        cur_insurance *= ((1 + r_ins) ** years_gap)
+        
+    # Generate Table Data
+    duration = int(row.get('Duration_Years', 1))
+    table_data = []
+    
+    for i in range(duration):
+        year_study = start_year + i
+        annual_liv = (cur_rent + cur_liv_excl_rent) * 12
+        total = cur_tuition + annual_liv + cur_insurance
+        
+        table_data.append({
+            "Year": year_study,
+            "Tuition": cur_tuition,
+            "Living Cost": annual_liv,
+            "Insurance": cur_insurance,
+            "Total Budget": total
+        })
+        
+        # Compound for next year
+        cur_tuition *= (1 + r_tui)
+        cur_rent *= (1 + r_rent)
+        cur_liv_excl_rent *= (1 + r_liv)
+        cur_insurance *= (1 + r_ins)
+        
+    df_result = pd.DataFrame(table_data)
+    
+    # --- DISPLAY ---
+    st.subheader(f"Financial Forecast: {university}")
+    st.caption(f"{program} - {level} ({duration} Years)")
+    
+    # Key Metric Highlight
+    total_est = df_result['Total Budget'].sum()
+    st.metric("Total Estimated Cost (Full Degree)", f"${total_est:,.2f}")
+    
+    # Styled Table
+    st.dataframe(
+        df_result.style.format({
+            "Year": "{:.0f}",
+            "Tuition": "${:,.2f}",
+            "Living Cost": "${:,.2f}",
+            "Insurance": "${:,.2f}",
+            "Total Budget": "${:,.2f}"
+        }),
+        use_container_width=True
+    )
