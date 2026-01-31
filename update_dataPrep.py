@@ -12,11 +12,15 @@ import data_prep as dp
 #     }
 #     return tuition_inf
 
-df_adjust = (dp.df_work
+def update_df_work():
+    dp.df_work = (dp.df_work
            .pipe(dp.append_yeCost)
            .pipe(dp.update_data)
            .pipe(dp.exact_livCost)
             )
+    return dp.df_work
+
+df_adjust = update_df_work()
 
 def set_avgInf_Series(country_name, target_col):
     if country_name == 'USA':

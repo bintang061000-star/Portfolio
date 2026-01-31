@@ -12,15 +12,3 @@ sns.heatmap(check_corr,
             fmt='.2f',)
 plt.title('Correlation Matrix')
 plt.show()
-
-# CHECK INDICATORS
-# def check():
-#     check = dp.df_main[['Country',
-#                         'Living_Cost_Index',
-#                         'Tuition_USD',
-#                         'Rent_USD',
-#                         'Insurance_USD']].groupby('Country').mean().sort_values(by='Tuition_USD', ascending=False).round(2)
-#     return check
-# print(check())
-
-# append_yeCost = dp.append_yeCost(dp.df_main).head())

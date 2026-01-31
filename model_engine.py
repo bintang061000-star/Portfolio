@@ -6,33 +6,28 @@ import joblib
 import data_prep as dp
 
 def load_data():
-    datasets = [('US', 0), ('UK', 1), ('Aus', 2), ('Other', 3)]
+    datasets = [
+        ('US', 0, dp.df_us, dp.df_Growth_Rent_US, dp.df_Growth_LivCost_US, dp.df_Growth_Insurance_US, dp.df_InfUS),
+        ('UK', 1, dp.df_uk, dp.df_Growth_Rent_UK, dp.df_Growth_LivCost_UK, dp.df_Growth_Insurance_UK, dp.df_InfUK),
+        ('Aus', 2, dp.df_au, dp.df_Growth_Rent_Aus, dp.df_Growth_LivCost_Aus, dp.df_Growth_Insurance_Aus, dp.df_InfAus),
+        ('Other', 3, dp.df_other, dp.df_Growth_Rent_Other, dp.df_Growth_LivCost_Other, dp.df_Growth_Insurance_Other, dp.df_InfGlobal)
+    ]
     dfs = []
     
-    for nation, code in datasets:
-        try:
-            folder = "datasets"
-            df_tui = pd.read_csv(f"{folder}/{nation}_Avg_Tuition.csv")
-            df_rent = pd.read_csv(f"{folder}/Growth_Rent_{nation}.csv")
-            df_liv = pd.read_csv(f"{folder}/Growth_LivCost_{nation}.csv")
-            df_ins = pd.read_csv(f"{folder}/Growth_Insurance_{nation}.csv")
-            df_inf = pd.read_csv(f"{folder}/{nation}_Inflation.csv")
+    for nation, code, df_tui, df_rent, df_liv, df_ins, df_inf in datasets:
+        merged = df_tui.merge(df_rent, on='Year', suffixes=('_tui', '_rent')) \
+                       .merge(df_liv, on='Year') \
+                       .merge(df_ins, on='Year', suffixes=('_liv', '_ins')) \
+                       .merge(df_inf, on='Year')
 
-            merged = df_tui.merge(df_rent, on='Year', suffixes=('_tui', '_rent')) \
-                           .merge(df_liv, on='Year') \
-                           .merge(df_ins, on='Year', suffixes=('_liv', '_ins')) \
-                           .merge(df_inf, on='Year')
-
-            merged = merged.rename(columns={
-                'Growth_tui': 'y_tuition', 'Growth_rent': 'y_rent',
-                'Growth_liv': 'y_living', 'Growth_ins': 'y_insur',
-                'Growth': 'x_inflation'
-            })
-            merged['Country_Code'] = code
-            dfs.append(merged)
-        except Exception:
-            continue
-
+        merged = merged.rename(columns={
+            'Growth_tui': 'y_tuition', 'Growth_rent': 'y_rent',
+            'Growth_liv': 'y_living', 'Growth_ins': 'y_insur',
+            'Growth': 'x_inflation'
+        })
+        merged['Country_Code'] = code
+        dfs.append(merged)
+        
     return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
 def train_model():
@@ -56,7 +51,6 @@ def train_model():
         print(f"R2 Score: {r2_score(y_test, pred):.4f}")
         
         joblib.dump(model, 'budget_predictor_model.pkl')
-        print("Model saved to budget_predictor_model.pkl")
 
 if __name__ == "__main__":
     train_model()

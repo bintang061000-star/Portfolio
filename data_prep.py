@@ -155,3 +155,13 @@ def exchange_rate_growth():
     except Exception as e:
         print(f"Error fetching exchange rate: {e}")
         return 0.0
+
+def get_current_exchange_rate():
+    try:
+        data_kurs = yf.Ticker("IDR=X").history(period="1d")
+        if not data_kurs.empty:
+            return data_kurs['Close'].iloc[-1]
+        return 16000.0
+    except Exception as e:
+        print(f"Error fetching current exchange rate: {e}")
+        return 16000.0

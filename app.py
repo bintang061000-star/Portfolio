@@ -3,6 +3,7 @@ import pandas as pd
 import joblib
 import datetime
 import data_prep as dp
+import update_dataPrep as udp
 
 # --- CONFIG ---
 st.set_page_config(page_title="EduCost Predictor", layout="wide")
@@ -29,26 +30,26 @@ COUNTRY_MAP = {'USA': 0, 'UK': 1, 'Australia': 2, 'Other': 3}
 with st.sidebar:
     st.header("Study Plan")
     
-    # 1. Country Selection
-    countries = sorted(dp.df_main['Country'].unique())
+    # 1. Country Selection - Use udp.df_adjust for consistent data source
+    countries = sorted(udp.df_adjust['Country'].unique())
     country = st.selectbox("Destination Country", countries)
     
     # 2. University Selection (Filtered by Country)
-    univs = sorted(dp.df_main[dp.df_main['Country'] == country]['University'].unique())
+    univs = sorted(udp.df_adjust[udp.df_adjust['Country'] == country]['University'].unique())
     university = st.selectbox("University", univs)
     
     # 3. Program Selection (Filtered by University)
-    programs = sorted(dp.df_main[
-        (dp.df_main['Country'] == country) & 
-        (dp.df_main['University'] == university)
+    programs = sorted(udp.df_adjust[
+        (udp.df_adjust['Country'] == country) & 
+        (udp.df_adjust['University'] == university)
     ]['Program'].unique())
     program = st.selectbox("Program", programs)
     
     # 4. Level Selection (Filtered by Program)
-    levels = sorted(dp.df_main[
-        (dp.df_main['Country'] == country) & 
-        (dp.df_main['University'] == university) &
-        (dp.df_main['Program'] == program)
+    levels = sorted(udp.df_adjust[
+        (udp.df_adjust['Country'] == country) & 
+        (udp.df_adjust['University'] == university) &
+        (udp.df_adjust['Program'] == program)
     ]['Level'].unique())
     level = st.selectbox("Degree Level", levels)
     
@@ -60,27 +61,35 @@ with st.sidebar:
 
 # --- MAIN LOGIC ---
 if predict_btn:
-    # Get Data Row
-    row = dp.df_main[
-        (dp.df_main['Country'] == country) & 
-        (dp.df_main['University'] == university) &
-        (dp.df_main['Program'] == program) &
-        (dp.df_main['Level'] == level)
+    # Get Data Row from treated dataframe
+    row = udp.df_adjust[
+        (udp.df_adjust['Country'] == country) & 
+        (udp.df_adjust['University'] == university) &
+        (udp.df_adjust['Program'] == program) &
+        (udp.df_adjust['Level'] == level)
     ].iloc[0]
     
     # Predict Rates
     c_code = COUNTRY_MAP.get(country, 3)
     curr_rate = dp.exchange_rate_growth()
+    current_idr_rate = dp.get_current_exchange_rate()
+    
     # Predict rates relative to the start year context
     rates = model.predict([[c_code, 3.0, start_year, curr_rate]])[0] / 100
     r_tui, r_rent, r_liv, r_ins = rates
     
+    # IDR Growth factor
+    idr_growth_factor = curr_rate / 100
+    
     # Calculate Future Value at Start Year
-    # Initial Base Costs
-    cur_tuition = row['Tuition_USD'] * 2
-    cur_liv_excl_rent = (row['Living_Cost_Index']/100) * 1650
+    # Initial Base Costs (From pre-calculated columns)
+    cur_tuition = row['Tuition_Yearly']
     cur_rent = row['Rent_USD']
+    cur_liv_excl_rent = row['Monthly_Living_Cost'] - row['Rent_USD']
     cur_insurance = row['Insurance_USD']
+    
+    # Project Exchange Rate to Start Year
+    projected_idr_rate = current_idr_rate
     
     years_gap = start_year - current_year
     
@@ -89,6 +98,7 @@ if predict_btn:
         cur_rent *= ((1 + r_rent) ** years_gap)
         cur_liv_excl_rent *= ((1 + r_liv) ** years_gap)
         cur_insurance *= ((1 + r_ins) ** years_gap)
+        projected_idr_rate *= ((1 + idr_growth_factor) ** years_gap)
         
     # Generate Table Data
     duration = int(row.get('Duration_Years', 1))
@@ -97,14 +107,16 @@ if predict_btn:
     for i in range(duration):
         year_study = start_year + i
         annual_liv = (cur_rent + cur_liv_excl_rent) * 12
-        total = cur_tuition + annual_liv + cur_insurance
+        total_usd = cur_tuition + annual_liv + cur_insurance
+        total_idr = total_usd * projected_idr_rate
         
         table_data.append({
             "Year": year_study,
-            "Tuition": cur_tuition,
-            "Living Cost": annual_liv,
-            "Insurance": cur_insurance,
-            "Total Budget": total
+            "Tuition (USD)": cur_tuition,
+            "Living Cost (USD)": annual_liv,
+            "Insurance (USD)": cur_insurance,
+            "Total Budget (USD)": total_usd,
+            "Total Budget (IDR)": total_idr
         })
         
         # Compound for next year
@@ -112,25 +124,34 @@ if predict_btn:
         cur_rent *= (1 + r_rent)
         cur_liv_excl_rent *= (1 + r_liv)
         cur_insurance *= (1 + r_ins)
+        projected_idr_rate *= (1 + idr_growth_factor)
         
     df_result = pd.DataFrame(table_data)
     
     # --- DISPLAY ---
     st.subheader(f"Financial Forecast: {university}")
     st.caption(f"{program} - {level} ({duration} Years)")
+    st.markdown(f"**Current Exchange Rate:** 1 USD = Rp {current_idr_rate:,.2f} | **Avg Growth:** {curr_rate}%")
     
     # Key Metric Highlight
-    total_est = df_result['Total Budget'].sum()
-    st.metric("Total Estimated Cost (Full Degree)", f"${total_est:,.2f}")
+    total_est_usd = df_result['Total Budget (USD)'].sum()
+    total_est_idr = df_result['Total Budget (IDR)'].sum()
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Total Estimated Cost (USD)", f"${total_est_usd:,.2f}")
+    with col2:
+        st.metric("Total Estimated Cost (IDR)", f"Rp {total_est_idr:,.2f}")
     
     # Styled Table
     st.dataframe(
         df_result.style.format({
             "Year": "{:.0f}",
-            "Tuition": "${:,.2f}",
-            "Living Cost": "${:,.2f}",
-            "Insurance": "${:,.2f}",
-            "Total Budget": "${:,.2f}"
+            "Tuition (USD)": "${:,.2f}",
+            "Living Cost (USD)": "${:,.2f}",
+            "Insurance (USD)": "${:,.2f}",
+            "Total Budget (USD)": "${:,.2f}",
+            "Total Budget (IDR)": "Rp {:,.2f}"
         }),
         use_container_width=True
     )
